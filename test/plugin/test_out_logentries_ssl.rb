@@ -17,18 +17,10 @@ class LogentriesSSLOutTest < Test::Unit::TestCase
   end
 
   CONF = %[
-          token_path test/tmp/tokens.yml
           max_retries 2
           verify_fqdn false
+          token token
           ]
-
-  TOKENS = {"app" => "token", "app2" => "token2"}
-
-  def write_tokens
-    File.open("test/tmp/tokens.yml","w") do |f|
-      f.write TOKENS.to_yaml.to_s
-    end
-  end
 
   def stub_socket
     socket = mock('tcpsocket')
@@ -41,30 +33,13 @@ class LogentriesSSLOutTest < Test::Unit::TestCase
 
 
   test "configuration" do
-    write_tokens
     d = create_driver(CONF)
-    assert_equal 'test/tmp/tokens.yml', d.instance.token_path
     assert_equal 2, d.instance.max_retries
     assert_equal 443, d.instance.le_port
     assert_equal 'data.logentries.com', d.instance.le_host
   end
 
-  test "tags-tokens" do
-    write_tokens
-    d = create_driver(CONF)
-    assert_equal 'token', d.instance.tag_token('app')
-    assert_equal 'token2', d.instance.tag_token('app2')
-    assert_equal nil, d.instance.tag_token('app3')
-  end
-
-  test "unreadable tokens" do
-    assert_raise Fluent::ConfigError do
-      create_driver(CONF)
-    end
-  end
-
   test "sending to logentries" do
-    write_tokens
     socket = stub_socket
     message = {"message" => "Hello"}
     socket.expects(:write).with(regexp_matches(/^token {.*message.*Hello.*}\s+/i))
@@ -76,7 +51,6 @@ class LogentriesSSLOutTest < Test::Unit::TestCase
   end
 
   test "retries on errors" do
-    write_tokens
     socket = stub_socket
     message = {"message" => "Hello"}
     socket.expects(:write).with(anything).twice.raises(Errno::ECONNRESET).then.returns("ok")
@@ -88,7 +62,6 @@ class LogentriesSSLOutTest < Test::Unit::TestCase
   end
 
   test "sending too large events to LE" do
-    write_tokens
     socket = stub_socket
     message = {"hello" =>
                "a"*(Fluent::Plugin::LogentriesSSL::MessageHelper::MAX_SIZE + 100)}
